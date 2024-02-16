@@ -1,0 +1,33 @@
+# This folder demonstrates how RNA_seq data was analyzed
+########## prerequisite ##########
+# software/packages: 
+# STAR-2.7.3a (https://github.com/alexdobin/STAR/releases/tag/2.7.3a) was used for mapping. Please refer to this page (https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf) for installation instructions. 
+# samtools 1.14 (http://github.com/samtools/)
+# featureCounts v2.0.0 (https://subread.sourceforge.net/) 
+# cufflinks v2.2.1 (http://cole-trapnell-lab.github.io/cufflinks/install/)
+# DEseq2 (https://bioconductor.org/packages/release/bioc/html/DESeq2.html)
+# ggplot2 (https://www.rdocumentation.org/packages/ggplot2/versions/3.4.2)
+
+# hg38 genome: https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz  (unzip it after download)
+# gencode V35 annotation gtf: https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_35/gencode.v35.annotation.gtf.gz (unzip it after download)
+########## prerequisite ##########
+
+# step 1: building STAR mapping indexes
+STAR --runThreadN 64 --genomeDir hg38.star.index.genecode --runMode genomeGenerate --genomeFastaFiles hg38.fa --sjdbGTFfile gencode.v35.annotation.gtf --sjdbOverhang 75 
+
+#### step 2,3,4 can be done in parallel if you have multiple nodes. Here I only write one example (Sample1). In real analysis, there were 12 samples (3M-1, 3M-2, 3M-3, dPAM2-1, dPAM2-2, dPAM2-3, Uninduced-1, Uninduced-2, Uninduced-3, WT-1, WT-2, WT-3)
+  # step 2: mapping
+  STAR --genomeDir hg38.star.index.gencode --readFilesIn raw.data/Sample1_1.fq.gz raw.data/Sample1_2.fq.gz --outFileNamePrefix samplename1 --runThreadN 8 --limitBAMsortRAM 60000000000 --outBAMsortingThreadN 8 --outSAMattrRGline ID:Sample1 SM:Sample1 --outSAMtype BAM SortedByCoordinate -- 
+outSAMunmapped Within --outSAMstrandField intronMotif --readFilesCommand zcat --chimSegmentMin 20 --genomeLoad NoSharedMemory && samtools index Sample1.Aligned.sortedByCoord.out.bam
+
+  # step 3: count features for all sample 
+  featureCounts -a gencode.v35.annotation.gtf -o Sample1.featureCounts -M -C -T 8 Sample1.Aligned.sortedByCoord.out.bam
+
+  # step 4: compute FPKM
+  cufflinks -u -p 8 -o Sample1.cufflinks --max-bundle-frags 1000000000 --no-effective-length-correction --compatible-hits-norm -G gencode.v35.annotation.gtf Sample1
+
+# step 5: combine feature counts from all sample
+python3 combine.featureCounts.py C40_RNA.combine.xls C40_RNA_DMSO_1.featureCounts C40_RNA_DMSO_2.featureCounts C40_RNA_DMSO_3.featureCounts C40_RNA_24h_1.featureCounts C40_RNA_24h_2.featureCounts C40_RNA_24h_3.featureCounts C40_RNA_3h_1.featureCounts C40_RNA_3h_2.featureCounts C40_RNA_3h_3.featureCounts
+# step 6: perform DEG analysis with DEseq2
+Rscript deseq.R C40_RNA.combine.xls coldata contrast C40_RNAseq
+
