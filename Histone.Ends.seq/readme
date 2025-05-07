@@ -1,0 +1,25 @@
+## This directory contains scripts for histone end-seq data analysis ##
+## We only generated 2 libraries (H2A and H3) using conserved sequences within H2A and H3 genes to amplify the cDNA and sequence them. The library refers to the tail of histone genes.
+## To anaylysis them, first we need to generate a histone gene reference by extending the cononical histone genes, then map our sequencing reads to it, calculating the non-canonical tails.
+# required softwares: 
+# Bowtie2 (version 2.4.5) (https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.4.5/)
+# UMI-tools (version 0.5.5) (https://github.com/CGATOxford/UMI-tools)
+# Our libraries was demultiplexed with flexbar (https://github.com/seqan/flexbar)
+# to start with, download the following files: 
+# genecode gtf file (https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_35/gencode.v35.annotation.gtf.gz) 
+# transcripts fasta (https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_35/gencode.v35.pc_translations.fa.gz) 
+# and hg38 fasta file (https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz)
+
+# step 1: build a histone gene reference 
+python3 fish.histone.py histone.gene.list.info gencode.v35.annotation.gtf histone.gtf
+python3 extend.histone.fa.py histone.gene.list.info hg38.fa histone.gtf gencode.v35.pc_transcripts.fa histone.extended.fa 200 histone.gene.bed
+bowtie2-build histone.extended.fa histone.extended
+# step 2: mapping and PCR duplication removal
+zcat flexbarOut_barcode_sample1.fastq1.gz |sed 's/ /#/g' |gzip >sample1.fq1.gz
+bowtie2 -x histone.extended -1 sample1.fq1.gz -2 sample1.fq2.gz --local -p 8 |samtools sort - -@ 8 -O BAM -o sample1.sort.bam && samtools index sample1.sort.bam
+samtools sort -n sample1.sort.bam -@ 8 -O BAM -o sample1.sort.by.name.bam
+umi_tools dedup -I sample1.sort.bam -L sample1.dedup.log -S sample1.dedup.bam --extract-umi-method read_id --method unique && samtools index sample1.dedup.bam 
+
+# step 3: generate a table contains non-template tails
+python3 histone.tail.py sample1.sort.by.name.bam sample1.dedup.bam sample1.tail.table.xls > sample1.dedupped.reads
+
