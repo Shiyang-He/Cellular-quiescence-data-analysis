@@ -23,3 +23,5 @@ umi_tools dedup -I sample1.sort.bam -L sample1.dedup.log -S sample1.dedup.bam --
 # step 3: generate a table contains non-template tails
 python3 histone.tail.py sample1.sort.by.name.bam sample1.dedup.bam sample1.tail.table.xls > sample1.dedupped.reads
 
+# step 4: draw the figure 5F in the paper
+Rscript draw.stack.bar.for.histone.end.R.add.ratio.dots.R.combined.R.shifted.R H2A_0h.dedup.merge.2.xls.nucleotide.length.count.xls.sort.filter.with.stem_loop H2A_3h.dedup.merge.2.xls.nucleotide.length.count.xls.sort.filter.with.stem_loop H2A_24h.dedup.merge.2.xls.nucleotide.length.count.xls.sort.filter.with.stem_loop H2A.tail.stack.barplot.combined.shifted.pdf
